@@ -3,9 +3,10 @@
 @section('content')
 @php
     $menu = [
-        ['url' => url('/'), 'ikon' => 'ic-grid', 'label' => 'Ringkasan', 'short' => 'Ringkasan', 'aktif' => 'dashboard', 'hanya_hp' => false],
-        ['url' => route('tracking.index'), 'ikon' => 'ic-package', 'label' => 'Riwayat tracking', 'short' => 'Riwayat', 'aktif' => 'tracking.*', 'hanya_hp' => false],
-        ['url' => url('/') . '#kendali', 'ikon' => 'ic-sliders', 'label' => 'Kendali perangkat', 'short' => 'Kendali', 'aktif' => null, 'hanya_hp' => true],
+        ['url' => url('/'), 'ikon' => 'ic-grid', 'label' => 'Ringkasan', 'short' => 'Ringkasan', 'aktif' => 'dashboard', 'hanya_desktop' => false, 'cam' => false],
+        ['url' => route('tracking.index'), 'ikon' => 'ic-package', 'label' => 'Riwayat tracking', 'short' => 'Riwayat', 'aktif' => 'tracking.*', 'hanya_desktop' => false, 'cam' => false],
+        ['url' => route('kendali'), 'ikon' => 'ic-sliders', 'label' => 'Kendali perangkat', 'short' => 'Kendali', 'aktif' => 'kendali', 'hanya_desktop' => false, 'cam' => false],
+        ['url' => '/cam/', 'ikon' => 'ic-scan', 'label' => 'Lihat Kamera', 'short' => 'Kamera', 'aktif' => null, 'hanya_desktop' => true, 'cam' => true],
     ];
 @endphp
 <div class="app">
@@ -17,8 +18,7 @@
         <span class="menu-label">Menu</span>
         <nav class="menu">
             @foreach ($menu as $m)
-                @continue($m['hanya_hp'])
-                <a href="{{ $m['url'] }}" title="{{ $m['label'] }}" class="nav-link {{ $m['aktif'] && request()->routeIs($m['aktif']) ? 'is-active' : '' }}">
+                <a href="{{ $m['url'] }}" title="{{ $m['label'] }}" class="nav-link {{ $m['cam'] ? 'js-cam-link' : '' }} {{ $m['aktif'] && request()->routeIs($m['aktif']) ? 'is-active' : '' }}">
                     <svg class="icon"><use href="#{{ $m['ikon'] }}"/></svg><span>{{ $m['label'] }}</span>
                 </a>
             @endforeach
@@ -33,10 +33,19 @@
 
     <nav class="bottom-nav" aria-label="Menu bawah">
         @foreach ($menu as $m)
+            @continue($m['hanya_desktop'])
             <a href="{{ $m['url'] }}" class="{{ $m['aktif'] && request()->routeIs($m['aktif']) ? 'is-active' : '' }}">
                 <svg class="icon"><use href="#{{ $m['ikon'] }}"/></svg><span>{{ $m['short'] }}</span>
             </a>
         @endforeach
     </nav>
 </div>
+<script>
+(function () {
+  var camUrl = (window.location.port === '8000')
+    ? (window.location.protocol + '//' + window.location.hostname + ':5000/')
+    : '/cam/';
+  document.querySelectorAll('.js-cam-link').forEach(function (a) { a.href = camUrl; });
+})();
+</script>
 @endsection

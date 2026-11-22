@@ -20,11 +20,31 @@
     return svg;
   }
 
+  function snapUrlOf(item) {
+    if (!item || !item.snapshot) return '';
+    return item.snapshot.startsWith('http') ? item.snapshot : (S.apiOrigin + item.snapshot);
+  }
+
   // ----- tabel riwayat -----
   function baris(item, baru) {
     const d = item.data || {};
     const tr = document.createElement('tr');
     if (baru) tr.className = 'row-new';
+
+    const tdFoto = S.el('td');
+    const url = snapUrlOf(item);
+    if (url) {
+      const aImg = document.createElement('a');
+      aImg.href = '/tracking/' + encodeURIComponent(item.batch_id);
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = item.batch_id;
+      img.style.cssText = 'width:68px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #dfd3f5;display:block';
+      aImg.append(img);
+      tdFoto.append(aImg);
+    } else {
+      tdFoto.textContent = '-';
+    }
 
     const link = S.el('a', 'Lihat detail', 'badge-lihat');
     link.href = '/tracking/' + encodeURIComponent(item.batch_id);
@@ -33,6 +53,7 @@
     aksi.append(link);
 
     tr.append(
+      tdFoto,
       S.el('td', item.batch_id, 'mono'),
       S.el('td', d.var || item.material || '-'),
       S.el('td', d.prc || '-'),
@@ -63,7 +84,7 @@
       body.replaceChildren();
       if (list.length === 0) {
         const td = S.el('td', 'Belum ada batch. Data muncul otomatis saat perangkat memindai barcode.', 'empty');
-        td.colSpan = 8;
+        td.colSpan = 9;
         const tr = document.createElement('tr');
         tr.append(td);
         body.append(tr);
@@ -72,7 +93,15 @@
       list.forEach((x) => body.append(baris(x, baru.has(x.batch_id))));
     } catch (e) {
       const status = e.response ? e.response.status : 0;
-      $('track-update').textContent = status ? 'Error ' + status + ' dari API' : 'API tidak terjangkau';
+      const pesan = (e.response && e.response.data && e.response.data.pesan) || (status ? 'Error ' + status + ' dari API' : 'API tidak terjangkau');
+      $('track-update').textContent = 'Gagal memuat';
+      const body = $('track-body');
+      body.replaceChildren();
+      const td = S.el('td', pesan, 'empty');
+      td.colSpan = 9;
+      const tr = document.createElement('tr');
+      tr.append(td);
+      body.append(tr);
     }
   }
 
@@ -112,6 +141,14 @@
         dl.append(peta);
       }
 
+      const snapCard = $('det-snap-card');
+      const snapUrl = snapUrlOf(item);
+      if (snapCard && snapUrl) {
+        $('det-snap-img').src = snapUrl;
+        $('det-snap-link').href = snapUrl;
+        snapCard.style.display = '';
+      }
+
       $('det-raw').textContent = JSON.stringify(item.data, null, 2);
     } catch (e) {
       $('det-status').textContent = e.response && e.response.status === 404
@@ -126,5 +163,6 @@
   }
   if ($('detail-root')) {
     muatDetail();
+    setInterval(muatDetail, 6000);
   }
 })();

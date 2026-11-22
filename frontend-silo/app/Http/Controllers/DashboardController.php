@@ -10,4 +10,9 @@ class DashboardController extends Controller
     {
         return view('dashboard', ['token' => SiloTokenController::token()]);
     }
+
+    public function kendali(): View
+    {
+        return view('kendali', ['token' => SiloTokenController::token()]);
+    }
 }

@@ -19,6 +19,7 @@
         <table class="tbl">
             <thead>
                 <tr>
+                    <th>Foto</th>
                     <th>ID box</th>
                     <th>Varietas</th>
                     <th>Proses</th>
@@ -30,7 +31,7 @@
                 </tr>
             </thead>
             <tbody id="track-body">
-                <tr><td colspan="8" class="empty">Memuat data…</td></tr>
+                <tr><td colspan="9" class="empty">Memuat data…</td></tr>
             </tbody>
         </table>
     </div>

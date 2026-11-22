@@ -43,19 +43,23 @@
     const pct = Math.min(100, Math.max(0, (r.gas / b.crit_gas) * 100));
     $('ring-val').style.strokeDashoffset = KELILING * (1 - pct / 100);
     $('ring-pct').textContent = Math.round(pct) + '%';
-    $('ring-batas').textContent = 'dari batas CRITICAL ' + b.crit_gas;
+    $('ring-batas').textContent = 'batas kritis ' + b.crit_gas;
 
-    // Kendali
-    const manual = r.mode === 'MANUAL';
-    $('v-mode').textContent = 'mode ' + String(r.mode).toLowerCase();
-    $('btn-mode-auto').classList.toggle('is-active', !manual);
-    $('btn-mode-manual').classList.toggle('is-active', manual);
-    setSwitch('sw-fan', r.kipas);
-    setSwitch('sw-vent', r.ventilasi);
-    setSwitch('sw-conv', String(r.konveyor).toUpperCase() === 'RUNNING');
-    $('s-fan').textContent = (r.kipas ? 'Menyala' : 'Mati') + ' · ' + (manual ? 'manual' : 'otomatis');
-    $('s-vent').textContent = r.ventilasi ? 'Terbuka' : 'Tertutup';
-    $('s-conv').textContent = String(r.konveyor).toLowerCase();
+    // Kendali (jika panel kendali hadir di halaman ini)
+    if ($('btn-mode-auto')) {
+      const manual = String(r.mode || '').toUpperCase() === 'MANUAL';
+      const convUp = String(r.konveyor || '').toUpperCase();
+      const convLabel = { RUNNING: 'Berjalan', STOPPED: 'Berhenti', SCANNING: 'Memindai QR', ERROR: 'Tahan / Invalid' }[convUp] || convUp.toLowerCase();
+      $('v-mode').textContent = 'mode ' + (manual ? 'manual' : 'otomatis');
+      $('btn-mode-auto').classList.toggle('is-active', !manual);
+      $('btn-mode-manual').classList.toggle('is-active', manual);
+      setSwitch('sw-fan', r.kipas);
+      setSwitch('sw-vent', r.ventilasi);
+      setSwitch('sw-conv', convUp === 'RUNNING');
+      $('s-fan').textContent = (r.kipas ? 'Menyala' : 'Mati') + ' · ' + (manual ? 'manual' : 'otomatis');
+      $('s-vent').textContent = r.ventilasi ? 'Terbuka' : 'Tertutup';
+      $('s-conv').textContent = convLabel + (manual ? ' · manual' : '');
+    }
   }
 
   function buatGrafik() {
@@ -168,8 +172,20 @@
     pesan('Mengirim perintah…');
     try {
       await S.api.post('/kontrol', perintah);
+      if (perintah.mode === 'MANUAL') {
+        $('btn-mode-auto').classList.remove('is-active');
+        $('btn-mode-manual').classList.add('is-active');
+        $('v-mode').textContent = 'mode manual';
+      } else if (perintah.mode === 'AUTO') {
+        $('btn-mode-auto').classList.add('is-active');
+        $('btn-mode-manual').classList.remove('is-active');
+        $('v-mode').textContent = 'mode otomatis';
+      }
+      if (perintah.fan) setSwitch('sw-fan', perintah.fan === 'ON');
+      if (perintah.vent) setSwitch('sw-vent', perintah.vent === 'OPEN');
+      if (perintah.conveyor) setSwitch('sw-conv', perintah.conveyor === 'START');
       pesan('Terkirim: ' + Object.entries(perintah).map(([k, v]) => k + ' → ' + v).join(', '), 'ok');
-      setTimeout(muatTerbaru, 1500);
+      setTimeout(muatTerbaru, 900);
     } catch (e) {
       pesan(S.pesanGalat(e), 'err');
     } finally {

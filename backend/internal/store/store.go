@@ -76,8 +76,13 @@ func Open(path string) (*Store, error) {
 			return nil, err
 		}
 	}
-	// Migrasi: database lama belum punya kolom vent.
+	// Migrasi: database lama belum punya kolom payload/snapshot/vent.
 	if err := ensureColumn(db, "scans", "payload", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := ensureColumn(db, "scans", "snapshot", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		db.Close()
 		return nil, err
 	}
 	if err := ensureColumn(db, "readings", "vent", "INTEGER NOT NULL DEFAULT 0"); err != nil {
@@ -205,10 +210,16 @@ func (s *Store) PurgeOlderThan(ts int64) error {
 
 // ---------- scans (barang masuk) ----------
 
-// InsertScan menyimpan barang masuk. inserted=false jika batch_id sudah pernah tercatat.
+// InsertScan menyimpan barang masuk (atau memperbarui timestamp, JSON, & snapshot jika batch dipindai ulang).
 func (s *Store) InsertScan(sc model.Scan) (bool, error) {
-	res, err := s.db.Exec(`INSERT OR IGNORE INTO scans(ts, device_id, batch_id, material, payload) VALUES(?,?,?,?,?)`,
-		sc.TS, sc.DeviceID, sc.BatchID, sc.Material, sc.Payload)
+	res, err := s.db.Exec(`INSERT INTO scans(ts, device_id, batch_id, material, payload, snapshot) VALUES(?,?,?,?,?,?)
+		ON CONFLICT(batch_id) DO UPDATE SET
+			ts=excluded.ts,
+			device_id=excluded.device_id,
+			material=excluded.material,
+			payload=CASE WHEN excluded.payload<>'' THEN excluded.payload ELSE scans.payload END,
+			snapshot=CASE WHEN excluded.snapshot<>'' THEN excluded.snapshot ELSE scans.snapshot END`,
+		sc.TS, sc.DeviceID, sc.BatchID, sc.Material, sc.Payload, sc.Snapshot)
 	if err != nil {
 		return false, err
 	}
@@ -229,11 +240,11 @@ func (s *Store) CountScansSince(ts int64) (int, error) {
 }
 
 func (s *Store) ScansSince(ts int64) ([]model.Scan, error) {
-	return s.queryScans(`SELECT id, ts, device_id, batch_id, material FROM scans WHERE ts >= ? ORDER BY ts ASC`, ts)
+	return s.queryScans(`SELECT id, ts, device_id, batch_id, material, snapshot FROM scans WHERE ts >= ? ORDER BY ts ASC`, ts)
 }
 
 func (s *Store) RecentScans(limit int) ([]model.Scan, error) {
-	return s.queryScans(`SELECT id, ts, device_id, batch_id, material FROM scans ORDER BY ts DESC, id DESC LIMIT ?`, limit)
+	return s.queryScans(`SELECT id, ts, device_id, batch_id, material, snapshot FROM scans ORDER BY ts DESC, id DESC LIMIT ?`, limit)
 }
 
 func (s *Store) queryScans(q string, arg any) ([]model.Scan, error) {
@@ -245,7 +256,7 @@ func (s *Store) queryScans(q string, arg any) ([]model.Scan, error) {
 	out := []model.Scan{}
 	for rows.Next() {
 		var x model.Scan
-		if err := rows.Scan(&x.ID, &x.TS, &x.DeviceID, &x.BatchID, &x.Material); err != nil {
+		if err := rows.Scan(&x.ID, &x.TS, &x.DeviceID, &x.BatchID, &x.Material, &x.Snapshot); err != nil {
 			return nil, err
 		}
 		out = append(out, x)
@@ -280,12 +291,12 @@ func (s *Store) RecentEvents(limit int) ([]model.Event, error) {
 
 // RecentTracking: batch dari barcode (yang punya data lengkap), terbaru dulu.
 func (s *Store) RecentTracking(limit int) ([]model.Scan, error) {
-	return s.queryTracking(`SELECT id, ts, device_id, batch_id, material, payload FROM scans WHERE payload <> '' ORDER BY ts DESC, id DESC LIMIT ?`, limit)
+	return s.queryTracking(`SELECT id, ts, device_id, batch_id, material, payload, snapshot FROM scans WHERE payload <> '' ORDER BY ts DESC, id DESC LIMIT ?`, limit)
 }
 
 // TrackingByBatch mengembalikan satu batch berdasarkan kode box, atau nil jika tidak ada.
 func (s *Store) TrackingByBatch(batch string) (*model.Scan, error) {
-	list, err := s.queryTracking(`SELECT id, ts, device_id, batch_id, material, payload FROM scans WHERE batch_id = ? AND payload <> ''`, batch)
+	list, err := s.queryTracking(`SELECT id, ts, device_id, batch_id, material, payload, snapshot FROM scans WHERE batch_id = ? AND payload <> ''`, batch)
 	if err != nil || len(list) == 0 {
 		return nil, err
 	}
@@ -301,7 +312,7 @@ func (s *Store) queryTracking(q string, arg any) ([]model.Scan, error) {
 	out := []model.Scan{}
 	for rows.Next() {
 		var x model.Scan
-		if err := rows.Scan(&x.ID, &x.TS, &x.DeviceID, &x.BatchID, &x.Material, &x.Payload); err != nil {
+		if err := rows.Scan(&x.ID, &x.TS, &x.DeviceID, &x.BatchID, &x.Material, &x.Payload, &x.Snapshot); err != nil {
 			return nil, err
 		}
 		out = append(out, x)

@@ -3,9 +3,13 @@
 package service
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -127,8 +131,53 @@ func (s *Service) IngestTelemetry(t model.Telemetry, at time.Time) error {
 	return nil
 }
 
-// IngestScan menyimpan satu barang masuk. Mendukung format lama (batch_id) dan format barcode (id + data lengkap).
-// inserted=false untuk scan gagal atau batch yang sudah tercatat.
+func saveSnapshotJPEG(dbPath, batchID string, at time.Time, b64 string) string {
+	b64 = strings.TrimSpace(b64)
+	if b64 == "" {
+		return ""
+	}
+	if idx := strings.Index(b64, ","); idx >= 0 && strings.HasPrefix(b64, "data:") {
+		b64 = b64[idx+1:]
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(raw) < 100 || len(raw) > 2*1024*1024 {
+		return ""
+	}
+	snapDir := filepath.Join(filepath.Dir(dbPath), "snapshots")
+	if err := os.MkdirAll(snapDir, 0o755); err != nil {
+		return ""
+	}
+	safeBatch := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return '_'
+	}, batchID)
+	fname := fmt.Sprintf("%s_%d.jpg", safeBatch, at.Unix())
+	full := filepath.Join(snapDir, fname)
+	if err := os.WriteFile(full, raw, 0o644); err != nil {
+		return ""
+	}
+	return "/api/snapshots/" + fname
+}
+
+func stripSnapshotField(rawJSON string) string {
+	if rawJSON == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(rawJSON), &m); err != nil {
+		return rawJSON
+	}
+	delete(m, "snapshot_b64")
+	out, err := json.Marshal(m)
+	if err != nil {
+		return rawJSON
+	}
+	return string(out)
+}
+
+// IngestScan menyimpan satu barang masuk. Mendukung format lama (batch_id) dan format barcode (id + data lengkap + snapshot kamera).
 func (s *Service) IngestScan(p model.ScanPayload, at time.Time) (bool, error) {
 	if p.OK != nil && !*p.OK {
 		return false, nil
@@ -145,8 +194,12 @@ func (s *Service) IngestScan(p model.ScanPayload, at time.Time) (bool, error) {
 	if material == "" {
 		material = clean(p.Var, 64, "-")
 	}
+	snapURL := saveSnapshotJPEG(s.Cfg.DBPath, batch, at, p.SnapshotB64)
+	cleanPayload := stripSnapshotField(p.Raw)
 
-	inserted, err := s.Store.InsertScan(model.Scan{TS: at.Unix(), DeviceID: dev, BatchID: batch, Material: material, Payload: p.Raw})
+	inserted, err := s.Store.InsertScan(model.Scan{
+		TS: at.Unix(), DeviceID: dev, BatchID: batch, Material: material, Payload: cleanPayload, Snapshot: snapURL,
+	})
 	if err != nil {
 		return false, err
 	}

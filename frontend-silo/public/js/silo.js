@@ -1,8 +1,16 @@
 // Klien API bersama. Token datang dari server Laravel; jika ditolak (401) diminta ulang sekali lalu permintaan diulang.
 window.Silo = (function () {
   const cfg = window.SILO_CONFIG;
+  const isDirectLaravel = window.location.port === '8000';
+  const resolvedApiUrl = (!cfg.apiUrl || cfg.apiUrl === 'auto')
+    ? (isDirectLaravel
+        ? (window.location.protocol + '//' + window.location.hostname + ':3000/api')
+        : (window.location.origin + '/api'))
+    : cfg.apiUrl;
+  const apiOrigin = resolvedApiUrl.replace(/\/api\/?$/, '');
+  cfg.apiUrl = resolvedApiUrl;
 
-  const api = axios.create({ baseURL: cfg.apiUrl, timeout: 10000, headers: { Accept: 'application/json' } });
+  const api = axios.create({ baseURL: resolvedApiUrl, timeout: 10000, headers: { Accept: 'application/json' } });
 
   api.interceptors.request.use((k) => {
     k.headers.Authorization = 'Bearer ' + cfg.token;
@@ -72,5 +80,5 @@ window.Silo = (function () {
     Chart.defaults.borderColor = gaya.grid;
   }
 
-  return { cfg, api, fmt, jam, jamDetik, tanggalJam, el, pesanGalat, riskClass, gaya };
+  return { cfg, api, apiOrigin, fmt, jam, jamDetik, tanggalJam, el, pesanGalat, riskClass, gaya };
 })();

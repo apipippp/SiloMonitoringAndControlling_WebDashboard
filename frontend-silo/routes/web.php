@@ -5,9 +5,10 @@ use App\Http\Controllers\SiloTokenController;
 use App\Http\Controllers\TrackingController;
 use Illuminate\Support\Facades\Route;
 
-// Ringkasan (dashboard monitoring + kendali), tanpa login.
+// Ringkasan (dashboard monitoring) & halaman khusus kendali perangkat, tanpa login.
 Route::get('/', [DashboardController::class, 'dashboard'])->name('dashboard');
 Route::redirect('/dashboard', '/');
+Route::get('/kendali', [DashboardController::class, 'kendali'])->name('kendali');
 
 // Token API Go diambil di server. Browser hanya meminta ulang saat token ditolak (401).
 Route::post('/silo/token', [SiloTokenController::class, 'segarkan'])->name('silo.token');

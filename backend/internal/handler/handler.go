@@ -6,6 +6,8 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +59,7 @@ func ok(c fiber.Ctx, data any) error {
 func (h *Handler) Register(app *fiber.App) {
 	api := app.Group("/api")
 	api.Get("/health", h.Health)
+	api.Get("/snapshots/:file", h.SnapshotFile)
 	api.Post("/auth/login", h.Login)
 
 	api.Get("/auth/profil", h.Auth, h.Profil)
@@ -136,6 +139,20 @@ func (h *Handler) Logout(c fiber.Ctx) error {
 
 func (h *Handler) Health(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "ok", "waktu": time.Now().Unix()})
+}
+
+// SnapshotFile menyajikan gambar screenshot kamera saat barang VALID tersimpan.
+func (h *Handler) SnapshotFile(c fiber.Ctx) error {
+	name := filepath.Base(strings.TrimSpace(c.Params("file")))
+	if name == "" || name == "." || name == ".." || !strings.HasSuffix(strings.ToLower(name), ".jpg") {
+		return fail(c, fiber.StatusBadRequest, "Nama file tidak valid")
+	}
+	full := filepath.Join(filepath.Dir(h.Cfg.DBPath), "snapshots", name)
+	if _, err := os.Stat(full); err != nil {
+		return fail(c, fiber.StatusNotFound, "Snapshot tidak ditemukan")
+	}
+	c.Set("Cache-Control", "public, max-age=3600")
+	return c.SendFile(full)
 }
 
 // ---------- helper ----------

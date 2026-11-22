@@ -58,7 +58,8 @@ type ScanPayload struct {
 	WT   float64 `json:"wt"`
 	Silo string  `json:"silo"`
 
-	Raw string `json:"-"` // JSON asli dari perangkat, disimpan apa adanya
+	SnapshotB64 string `json:"snapshot_b64,omitempty"` // JPEG base64 dari view kamera saat barang VALID
+	Raw         string `json:"-"`                      // JSON asli dari perangkat (tanpa base64), disimpan apa adanya
 }
 
 // Reading adalah satu pembacaan yang tersimpan di database.
@@ -85,7 +86,8 @@ type Scan struct {
 	DeviceID string `json:"device_id"`
 	BatchID  string `json:"batch_id"`
 	Material string `json:"material"`
-	Payload  string `json:"-"` // JSON barcode lengkap (kosong untuk scan format lama)
+	Payload  string `json:"-"`        // JSON barcode lengkap (kosong untuk scan format lama)
+	Snapshot string `json:"snapshot"` // URL screenshot kamera saat barang VALID (mis. /api/snapshots/xxx.jpg)
 }
 
 // TrackingItem adalah batch tracking untuk API: data barcode dikirim sebagai objek JSON.

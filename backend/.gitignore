@@ -1,0 +1,5 @@
+# Cross-compiled binaries & runtime snapshots
+silo-api-arm64
+silo-api
+*.exe
+data/snapshots/
